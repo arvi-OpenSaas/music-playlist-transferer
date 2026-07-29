@@ -1,0 +1,630 @@
+================================================================================
+  HarmonySync - Implementation Plan
+  Phase 1: Apple Music -> YouTube Music
+================================================================================
+
+This plan turns HarmonySync into a production-ready Universal Music
+Interoperability Platform. It prioritizes Clean Architecture, SOLID principles,
+and a modular provider system so that Spotify, Amazon Music, JioSaavn, Gaana,
+Tidal, Deezer, Napster, Pandora, SoundCloud, and future providers can be added
+without redesigning the core application.
+
+--------------------------------------------------------------------------------
+1. CLARIFYING QUESTIONS (answer before implementation)
+--------------------------------------------------------------------------------
+
+1. Provider authentication / extraction strategy
+   A) Use official APIs where available and content-script adapters only for
+      platforms without a public API (recommended).
+   B) Rely entirely on DOM scraping / page-JS interception for all platforms.
+
+2. YouTube Music provider implementation
+   A) Use YouTube Data API v3 (official but less precise for music matching).
+   B) Inject scripts to call YouTube Music's internal browse/search endpoints.
+   C) Manual "search + add" content-script flow in the web UI.
+
+3. Apple Music authentication
+   A) Use an Apple Developer token / MusicKit private key for API access.
+   B) Authenticate via the signed-in web session at music.apple.com.
+
+4. Local processing scope
+   A) Run the full matching/scoring algorithm inside the service worker.
+   B) Offload heavy string similarity to an offscreen document or web worker.
+
+5. Data persistence requirement
+   A) Queue state must survive browser restarts and worker kills (recommended).
+   B) Queue state can be lost if the browser closes.
+
+6. Testing expectations
+   A) Unit tests for every pure module plus E2E mock-provider tests.
+   B) Only unit tests for the core engine and matcher.
+
+Answer these and I will begin building one file at a time.
+
+--------------------------------------------------------------------------------
+2. TARGET OUTCOMES FOR PHASE 1
+--------------------------------------------------------------------------------
+
+A Chrome Extension (Manifest V3) that can:
+
+- Connect to Apple Music and YouTube Music.
+- Read playlists and songs from Apple Music.
+- Match each Apple Music song to a YouTube Music counterpart with a confidence
+  score.
+- Create a destination playlist in YouTube Music and add matched songs.
+- Provide Pause, Resume, Cancel, progress updates, structured logs, and a
+  transfer summary.
+- Export missing, failed, and duplicate songs as JSON and CSV.
+
+The architecture must allow adding a future provider by only creating:
+
+  src/providers/<New>Provider.ts
+  src/content/<newPlatform>.ts
+
+No changes to TransferEngine, Queue, RetryEngine, Matcher, or Storage should
+be required.
+
+--------------------------------------------------------------------------------
+3. ARCHITECTURE OVERVIEW
+--------------------------------------------------------------------------------
+
+  +----------------------------------------------------------+
+  |                         Popup UI                         |
+  |  Transfer | Pause | Resume | Cancel | Logs | Reports     |
+  +------------^-------------------------^-------------------+
+               |                         |
+        typed runtime messages    read settings / progress
+               |                         |
+  +------------v-------------------------v-------------------+
+  |              Background Service Worker                     |
+  |  +------------+  +----------+  +----------------------+   |
+  |  |   Logger   |  |   Queue  |  |    RetryEngine       |   |
+  |  +------------+  +----------+  +----------------------+   |
+  |  +------------+  +----------+  +----------------------+   |
+  |  | TransferEngine | Matcher |  | DuplicateDetector   |   |
+  |  +------------+  +----------+  +----------------------+   |
+  |  +------------+  +-------------------------------------+  |
+  |  | IStorage   |  | MusicProvider interfaces / factory   |  |
+  |  +------------+  +-------------------------------------+  |
+  +------^----------------------^----------------------------+
+         |                      |
+    runtime messages       runtime messages
+         |                      |
+  +------v----------+    +------v----------+
+  | AppleMusic      |    | YouTubeMusic    |
+  | Content Adapter |    | Content Adapter |
+  +-----------------+    +-----------------+
+
+Design patterns used:
+- Dependency Injection: every class receives collaborators through constructors.
+- Strategy Pattern: MusicProvider, ScoringStrategy, StorageAdapter, RetryPolicy.
+- Factory Pattern: ProviderFactory creates provider instances from ProviderName.
+- Repository Pattern: IStorage abstracts chrome.storage away from business logic.
+- Composition over inheritance.
+- No God Classes. Maximum class size: 300 lines. Maximum function size: 40 lines.
+
+--------------------------------------------------------------------------------
+4. TECHNOLOGY ADDITIONS
+--------------------------------------------------------------------------------
+
+The repo already has vite, typescript, webextension-polyfill, eslint, prettier,
+@types/chrome. The following packages are recommended:
+
+  Package                             Why
+  -----------------------------------------------------------------------------
+  vitest + @vitest/coverage-v8        Unit testing
+  fastest-levenshtein or string-similarity   Fuzzy title/artist matching
+  zod                                 Runtime validation for messages/storage
+  date-fns                            Date formatting for reports (optional)
+  events / lightweight EventEmitter   Internal event bus (optional)
+
+package.json scripts to add:
+
+  "build": "tsc && vite build"
+  "dev":   "vite"
+  "test":  "vitest run"
+  "test:watch": "vitest"
+  "lint":  "eslint src --ext .ts"
+  "format": "prettier --write \"src/**/*.{ts,json,css,html}\""
+
+Also update package.json:
+  "type": "module"
+
+--------------------------------------------------------------------------------
+5. DATA MODEL (canonical shapes)
+--------------------------------------------------------------------------------
+
+Song:
+  id                  string          provider-specific id
+  title               string
+  artists             string[]
+  album?              string
+  durationSeconds?    number
+  isExplicit?         boolean
+  isLive?             boolean
+  isRemix?            boolean
+  isAcoustic?         boolean
+  language?           string
+  popularity?         number
+  provider            ProviderName
+  externalUrl?        string
+
+Playlist:
+  id                  string
+  name                string
+  description?        string
+  songCount?          number
+  provider            ProviderName
+  externalUrl?        string
+
+MatchResult:
+  sourceSong          Song
+  candidates          ScoredCandidate[]
+  selectedMatch?      Song
+  confidence          number
+  action              'auto' | 'ask' | 'manual-review'
+
+TransferReport:
+  jobId               string
+  sourceProvider      ProviderName
+  destinationProvider ProviderName
+  createdAt           number
+  completedAt?        number
+  totalSongs          number
+  matched             MatchedSong[]
+  failed              FailedSong[]
+  missing             MissingSong[]
+  duplicates          DuplicateSong[]
+  status              TransferStatus
+
+ProviderName enum:
+  APPLE_MUSIC
+  YOUTUBE_MUSIC
+  SPOTIFY
+  AMAZON_MUSIC
+  JIOSAAVN
+  GAANA
+  TIDAL
+  DEEZER
+  NAPSTER
+  PANDORA
+  SOUNDCLOUD
+
+Confidence thresholds (configurable):
+  95-100  -> automatic match
+  80-95   -> ask user
+  below 80 -> manual review
+
+--------------------------------------------------------------------------------
+6. FILE-BY-FILE IMPLEMENTATION ORDER
+--------------------------------------------------------------------------------
+
+I will generate ONE file at a time.
+For every file I will explain purpose, responsibilities, dependencies, how it
+communicates with other modules, provide complete production-ready code, and
+wait for your confirmation before continuing.
+
+PHASE A - Foundation & Tooling
+-------------------------------
+
+1. package.json
+   Purpose: project metadata, scripts, dependencies.
+   Responsibilities: define build/test/lint/format scripts; add dependencies;
+                     set "type": "module".
+   Dependencies: npm registry.
+   Communication: npm uses this to install and run tasks.
+
+2. tsconfig.json
+   Purpose: strict TypeScript configuration.
+   Responsibilities: target ES2022, module ESNext, include DOM/WebWorker/Chrome
+                     types, enable strict flags, define @/* path alias to src/.
+   Dependencies: TypeScript compiler.
+   Communication: used by tsc and IDEs.
+
+3. vite.config.ts
+   Purpose: extension-aware build pipeline.
+   Responsibilities: configure multi-entry output for background, popup, and
+                     content scripts; copy public/manifest.json to dist.
+   Dependencies: Vite.
+   Communication: Vite consumes this to bundle the extension.
+
+4. eslint.config.mjs (or .eslintrc.cjs)
+   Purpose: linting rules aligned with project standards.
+   Responsibilities: TypeScript aware rules, Prettier integration, import/order,
+                     ban console.log outside Logger.ts.
+   Dependencies: eslint, @typescript-eslint plugins.
+   Communication: run by CI and editor.
+
+5. .prettierrc
+   Purpose: consistent formatting.
+   Responsibilities: single quotes, 2 spaces, trailing commas, 100 print width.
+   Dependencies: prettier.
+   Communication: run by format script and editor.
+
+PHASE B - Shared Domain Model
+------------------------------
+
+6. src/shared/types.ts
+   Purpose: canonical domain types.
+   Responsibilities: define Song, Playlist, TransferJob, TransferReport,
+                     LogEntry, AppSettings, etc.
+   Dependencies: none.
+   Communication: imported by all modules.
+
+7. src/shared/constants.ts
+   Purpose: application-wide constants.
+   Responsibilities: provider URL patterns, confidence thresholds, retry defaults,
+                     storage keys, message names.
+   Dependencies: none.
+   Communication: imported by modules needing stable values.
+
+8. src/shared/errors.ts
+   Purpose: rich, recoverable error model.
+   Responsibilities: HarmonySyncError with reason, recoveryAction
+                     (Retry | Skip | ManualReview), retryable flag, inner error.
+   Dependencies: constants.ts.
+   Communication: thrown by providers/TransferEngine, caught by UI/error handler.
+
+9. src/shared/messages.ts
+   Purpose: typed inter-script message protocol.
+   Responsibilities: message name enum and payload/response interfaces; optional
+                     zod schemas for runtime validation.
+   Dependencies: types.ts.
+   Communication: all popup/background/content messages flow through this.
+
+10. src/utils/Logger.ts
+    Purpose: structured logging.
+    Responsibilities: log levels, timestamps, module tags, ring buffer for popup,
+                       optional remote sink.
+    Dependencies: constants.ts, storage config (optional).
+    Communication: injected into every class; only place console.log is permitted.
+
+11. src/utils/Helpers.ts
+    Purpose: pure utility functions.
+    Responsibilities: string normalization, duration parsing, CSV/JSON export
+                      helpers, sleep utilities.
+    Dependencies: none.
+    Communication: called by matcher, providers, reports.
+
+PHASE C - Storage & Persistence
+-------------------------------
+
+12. src/storage/IStorage.ts
+    Purpose: storage abstraction interface.
+    Responsibilities: async CRUD for settings, history, cache, failed songs,
+                      recent playlists.
+    Dependencies: types.ts.
+    Communication: implemented by concrete adapters; business logic depends only
+                   on this interface.
+
+13. src/storage/ChromeStorageAdapter.ts
+    Purpose: IStorage implementation backed by chrome.storage.local.
+    Responsibilities: get/set/remove, namespaced keys, JSON round-trip, schema
+                      migration hooks.
+    Dependencies: IStorage.ts, types.ts, Logger.ts, webextension-polyfill.
+    Communication: wraps browser.storage.local; used by core modules.
+
+PHASE D - Provider System
+-------------------------
+
+14. src/providers/MusicProvider.ts
+    Purpose: core provider contract.
+    Responsibilities: interface/class defining connect(), disconnect(),
+                      getPlaylists(), getPlaylistSongs(), searchSong(),
+                      createPlaylist(), addSongToPlaylist(),
+                      removeSongFromPlaylist(), provider metadata, isAvailable().
+    Dependencies: types.ts, errors.ts.
+    Communication: every concrete provider implements this; TransferEngine depends
+                   only on MusicProvider.
+
+15. src/providers/ProviderFactory.ts
+    Purpose: create provider instances.
+    Responsibilities: map ProviderName to concrete class; inject Logger, Storage,
+                      config; reject unsupported providers.
+    Dependencies: MusicProvider.ts, concrete providers, Logger.ts, IStorage.ts.
+    Communication: TransferEngine and popup ask the factory for providers.
+
+16. src/providers/AppleProvider.ts
+    Purpose: Apple Music provider.
+    Responsibilities: authenticate/connect; fetch playlists and songs; normalize
+                      Apple data to canonical Song model; search/add via content
+                      script adapter or API.
+    Dependencies: MusicProvider.ts, Logger.ts, IStorage.ts, content messaging.
+    Communication: sends messages to Apple Music content script/tab.
+
+17. src/providers/YoutubeProvider.ts
+    Purpose: YouTube Music provider.
+    Responsibilities: authenticate/connect; search songs; create playlists; add
+                      songs; normalize YouTube Music data to canonical Song model.
+    Dependencies: MusicProvider.ts, Logger.ts, IStorage.ts, content messaging.
+    Communication: sends messages to YouTube Music content script/tab.
+
+PHASE E - Content Script Adapters
+---------------------------------
+
+18. src/content/appleMusic.ts
+    Purpose: Apple Music web-page adapter.
+    Responsibilities: listen for messages; extract playlists from DOM; extract
+                      song lists; handle infinite scroll; return normalized data;
+                      perform add/remove actions.
+    Dependencies: messages.ts, Logger.ts, types.ts, Helpers.ts,
+                  contentScriptUtils.ts.
+    Communication: chrome.runtime.onMessage from background; returns responses.
+
+19. src/content/youtubeMusic.ts
+    Purpose: YouTube Music web-page adapter.
+    Responsibilities: listen for messages; search songs; create playlist; add
+                      songs; verify success; handle errors.
+    Dependencies: messages.ts, Logger.ts, types.ts, Helpers.ts,
+                  contentScriptUtils.ts.
+    Communication: chrome.runtime.onMessage from background; returns responses.
+
+20. src/content/contentScriptUtils.ts
+    Purpose: shared content-script helpers.
+    Responsibilities: DOM mutation observer, scroll-until-stable, message
+                      response wrapper, retry on DOM-not-ready.
+    Dependencies: Logger.ts.
+    Communication: imported by both content scripts.
+
+PHASE F - Matching & Deduplication
+----------------------------------
+
+21. src/matcher/MatcherOptions.ts
+    Purpose: matching configuration.
+    Responsibilities: define weights for title, artist, album, duration,
+                      language, explicit, popularity, live, remix, acoustic.
+    Dependencies: types.ts.
+    Communication: passed into Matcher/ConfidenceEngine.
+
+22. src/matcher/ConfidenceEngine.ts
+    Purpose: compute confidence scores.
+    Responsibilities: fuzzy string similarity, duration delta, keyword detection,
+                      explicit/popularity bonuses, return 0-100 score. Algorithm
+                      is replaceable via strategy injection.
+    Dependencies: types.ts, Helpers.ts, fuzzy string library, MatcherOptions.ts.
+    Communication: Matcher calls this for each candidate.
+
+23. src/matcher/Matcher.ts
+    Purpose: smart song matching orchestrator.
+    Responsibilities: take a source Song, ask destination provider to search,
+                      score candidates using ConfidenceEngine, apply thresholds,
+                      return MatchResult.
+    Dependencies: MusicProvider.ts, ConfidenceEngine.ts, types.ts, errors.ts,
+                  Logger.ts, MatcherOptions.ts.
+    Communication: used by TransferEngine for each song.
+
+24. src/matcher/DuplicateDetector.ts
+    Purpose: detect duplicates.
+    Responsibilities: hash/key comparison plus fuzzy fallback; report duplicate
+                      songs in source/destination playlists.
+    Dependencies: types.ts, Helpers.ts.
+    Communication: called by TransferEngine before/after transfer.
+
+PHASE G - Transfer Orchestration
+--------------------------------
+
+25. src/core/Queue.ts
+    Purpose: persistent job queue.
+    Responsibilities: enqueue transfer items, persist state in storage,
+                      dequeue next item, mark success/failure, support
+                      pause/resume/cancel, expose progress statistics.
+    Dependencies: IStorage.ts, types.ts, Logger.ts.
+    Communication: TransferEngine drives the queue; IStorage persists it.
+
+26. src/core/RetryEngine.ts
+    Purpose: retry policy executor.
+    Responsibilities: exponential backoff, max attempts, classify errors as
+                      retryable or fatal, integrate with HarmonySyncError.
+    Dependencies: errors.ts, Logger.ts, constants.ts.
+    Communication: TransferEngine calls before marking an item failed.
+
+27. src/core/TransferEngine.ts
+    Purpose: provider-agnostic transfer orchestrator.
+    Responsibilities:
+      - transfer(sourceProvider, destinationProvider, options)
+      - fetch source playlists and songs
+      - match each song (via Matcher)
+      - enqueue and process queue
+      - retry failures via RetryEngine
+      - emit progress events
+      - support pause/resume/cancel
+      - generate report via TransferReportBuilder
+      - never know concrete providers
+    Dependencies: MusicProvider.ts, Queue.ts, RetryEngine.ts, Matcher.ts,
+                  DuplicateDetector.ts, IStorage.ts, Logger.ts, errors.ts,
+                  types.ts.
+    Communication: instantiated by background; controlled by popup via messages.
+
+28. src/core/TransferReportBuilder.ts
+    Purpose: generate transfer summaries.
+    Responsibilities: build TransferReport with counts; export JSON/CSV.
+    Dependencies: types.ts, Helpers.ts.
+    Communication: TransferEngine calls it at end; popup uses it for exports.
+
+PHASE H - Background & UI
+-------------------------
+
+29. src/background/background.ts
+    Purpose: service worker entry point.
+    Responsibilities: route messages between popup and providers/content
+                      scripts; instantiate Logger, Storage, TransferEngine,
+                      ProviderFactory; schedule tasks; send notifications;
+                      resume queue on service worker startup.
+    Dependencies: messages.ts, Logger.ts, ChromeStorageAdapter.ts,
+                  TransferEngine.ts, ProviderFactory.ts.
+    Communication: listens to runtime.onMessage/action events; sends messages to
+                   content scripts and browser notifications.
+
+30. public/manifest.json
+    Purpose: Chrome Extension Manifest V3.
+    Responsibilities: declare background service worker, popup action, content
+                      scripts for music.apple.com and music.youtube.com, host
+                      permissions, storage/notification permissions, icons.
+    Dependencies: Vite build.
+    Communication: browser reads this to install and run the extension.
+
+31. src/popup/popup.html
+    Purpose: popup markup.
+    Responsibilities: dark-themed layout: header, platform selectors, transfer
+                      controls, progress bar, log viewer, report/export section.
+    Dependencies: popup.css.
+    Communication: static HTML loaded by browser action.
+
+32. src/popup/popup.css
+    Purpose: dark theme styling.
+    Responsibilities: color scheme, typography, progress bar, button states,
+                      scrollable log area.
+    Dependencies: none.
+    Communication: linked by popup.html.
+
+33. src/popup/popup.ts
+    Purpose: popup logic.
+    Responsibilities: bind UI controls; request transfer/pause/resume/cancel
+                      from background; listen for progress/log updates; render
+                      status and reports; handle JSON/CSV export.
+    Dependencies: messages.ts, types.ts, Helpers.ts.
+    Communication: sends typed messages to background; updates DOM.
+
+PHASE I - Documentation & Tests
+-------------------------------
+
+34. docs/Requirements.md
+    Purpose: product requirements.
+    Responsibilities: functional/non-functional requirements and Phase 1
+                      acceptance criteria.
+    Dependencies: none.
+
+35. docs/Architecture.md
+    Purpose: living architecture guide.
+    Responsibilities: diagrams, patterns, module boundaries, provider contract,
+                      data flow.
+    Dependencies: implementation done in Phase 1.
+
+36. docs/Roadmap.md
+    Purpose: phased roadmap.
+    Responsibilities: all 8 phases with goals and high-level effort.
+    Dependencies: product vision.
+
+37. README.md
+    Purpose: developer and user overview.
+    Responsibilities: install, build, test, load unpacked extension.
+    Dependencies: none.
+
+38. vitest.config.ts
+    Purpose: test configuration.
+    Responsibilities: Vite-based runner, coverage thresholds, path aliases,
+                      browser-ish environment if needed.
+    Dependencies: vitest.
+    Communication: Vitest uses this to run tests.
+
+39. src/providers/__mocks__/MockProvider.ts
+    Purpose: in-memory test provider.
+    Responsibilities: implement MusicProvider with deterministic behavior,
+                      configurable latency/failure rate, fixture catalog.
+    Dependencies: MusicProvider.ts, types.ts.
+    Communication: used in unit tests.
+
+40. tests/unit/Logger.test.ts
+    Purpose: verify Logger.
+    Responsibilities: log levels, ring buffer, formatting.
+    Dependencies: Logger.ts.
+
+41. tests/unit/ConfidenceEngine.test.ts
+    Purpose: verify scoring.
+    Responsibilities: exact match, fuzzy title, remix/live detection, duration
+                      penalty.
+    Dependencies: ConfidenceEngine.ts, fixtures.
+
+42. tests/unit/Matcher.test.ts
+    Purpose: verify matching behavior.
+    Responsibilities: auto-match, ask-user, manual-review outcomes.
+    Dependencies: Matcher.ts, MockProvider.ts, ConfidenceEngine.ts.
+
+43. tests/unit/TransferEngine.test.ts
+    Purpose: verify transfer orchestration.
+    Responsibilities: full playlist transfer, retry, pause/resume/cancel,
+                      report generation.
+    Dependencies: TransferEngine.ts, MockProvider.ts, Queue.ts, RetryEngine.ts,
+                  Matcher.ts, DuplicateDetector.ts, mock storage, Logger.
+
+44. tests/unit/ChromeStorageAdapter.test.ts
+    Purpose: verify storage wrapper.
+    Responsibilities: CRUD, namespacing, error handling.
+    Dependencies: ChromeStorageAdapter.ts, mocked browser.storage.local.
+
+45. tests/fixtures/songs.ts
+    Purpose: reusable test data.
+    Responsibilities: canonical song objects, playlist objects, provider raw
+                       responses.
+    Dependencies: types.ts.
+
+--------------------------------------------------------------------------------
+7. DEVELOPMENT WORKFLOW
+--------------------------------------------------------------------------------
+
+- One file is generated at a time.
+- Before generating a file, I explain its purpose, responsibilities,
+  dependencies, and how it communicates with other modules.
+- After generating the file, I provide complete production-ready code, an
+  explanation, and future improvements.
+- I then wait for your confirmation before generating the next file.
+- If a later file reveals a needed change in an earlier file, I will explain the
+  change and edit only that earlier file explicitly.
+
+--------------------------------------------------------------------------------
+8. VERIFICATION & TESTING STRATEGY
+--------------------------------------------------------------------------------
+
+Static checks:
+  npm run lint
+  npm run build
+  npx tsc --noEmit
+
+Unit tests:
+  npm run test
+
+Manual extension test:
+  - Run npm run build.
+  - Load dist/ as an unpacked extension in Chrome/Edge/Brave.
+  - Open an Apple Music playlist and run a transfer to YouTube Music.
+
+Mock flow test:
+  - Full transfer MockProvider -> MockProvider with simulated failures to prove
+    retry, pause, resume, and report generation work.
+
+--------------------------------------------------------------------------------
+9. RISKS & MITIGATIONS
+--------------------------------------------------------------------------------
+
+Risk: YouTube Music has no fully public API.
+Mitigation: build provider as content-script adapter; keep abstraction so it can
+            be swapped later.
+
+Risk: Apple Music DOM extraction is fragile.
+Mitigation: use DOM observers and retries; prefer official API if a token is
+            available.
+
+Risk: Long transfers may be killed by service worker lifetime limits.
+Mitigation: persist Queue in chrome.storage.local and resume on
+            chrome.runtime.onStartup.
+
+Risk: Song matching accuracy.
+Mitigation: modular scoring strategy, configurable thresholds, and ask-user
+            fallback.
+
+Risk: Large playlists cause rate limits or UI freezing.
+Mitigation: batched processing, throttled provider calls, async queue with
+            pause/resume.
+
+--------------------------------------------------------------------------------
+10. NEXT STEPS
+--------------------------------------------------------------------------------
+
+1. Answer the clarifying questions in section 1.
+2. Confirm the file order and scope in section 6.
+3. I will begin with File 1 (package.json) and continue one file at a time,
+   waiting for your confirmation after each file.
+
+================================================================================
+End of Plan
+================================================================================

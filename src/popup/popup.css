@@ -1,0 +1,49 @@
+body {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 12px;
+  min-width: 320px;
+  color: #e5e7eb;
+  background: #111827;
+}
+
+button {
+  background: #2563eb;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  padding: 8px 12px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.loader {
+  display: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid #374151;
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 8px;
+}
+
+.loader.active {
+  display: inline-block;
+}
+
+#status,
+#step {
+  margin-top: 6px;
+  font-size: 14px;
+}
+
+#step {
+  color: #93c5fd;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

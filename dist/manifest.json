@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "HarmonySync",
+  "description": "Universal Music Playlist Migration Platform",
+  "version": "0.1.0",
+  "permissions": [
+    "tabs",
+    "storage",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "https://music.apple.com/*",
+    "https://music.youtube.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://music.apple.com/*"],
+      "js": ["appleMusic.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://music.youtube.com/*"],
+      "js": ["youtubeMusic.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "HarmonySync"
+  }
+}

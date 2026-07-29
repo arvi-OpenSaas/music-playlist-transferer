@@ -1,0 +1,1 @@
+function r(e){return{ok:!0,data:e}}function o(e){return{ok:!1,error:e}}function a(e=3e3){return new Promise(t=>{if(document.readyState==="complete"){t();return}const n=window.setTimeout(()=>{t()},e);document.addEventListener("DOMContentLoaded",()=>{window.clearTimeout(n),t()},{once:!0})})}export{o as a,r as c,a as w};
