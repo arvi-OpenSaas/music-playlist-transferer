@@ -48,7 +48,7 @@ export abstract class BaseMusicProvider implements MusicProvider {
     };
   }
 
-  async addSongToPlaylist(): Promise<void> {
+  async addSongToPlaylist(playlistId: string, song: Song): Promise<void> {
     return;
   }
 

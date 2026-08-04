@@ -10,20 +10,8 @@
     "scripting"
   ],
   "host_permissions": [
-    "https://music.apple.com/*",
-    "https://music.youtube.com/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["https://music.apple.com/*"],
-      "js": ["appleMusic.js"],
-      "run_at": "document_idle"
-    },
-    {
-      "matches": ["https://music.youtube.com/*"],
-      "js": ["youtubeMusic.js"],
-      "run_at": "document_idle"
-    }
+    "*://music.youtube.com/*",
+    "*://music.apple.com/*"
   ],
   "background": {
     "service_worker": "background.js",
@@ -31,6 +19,18 @@
   },
   "action": {
     "default_popup": "popup.html",
-    "default_title": "HarmonySync"
+    "default_title": "HarmonySync",
+    "default_icon": {
+      "16": "logo.png",
+      "32": "logo.png",
+      "48": "logo.png",
+      "128": "logo.png"
+    }
+  },
+  "icons": {
+    "16": "logo.png",
+    "32": "logo.png",
+    "48": "logo.png",
+    "128": "logo.png"
   }
 }

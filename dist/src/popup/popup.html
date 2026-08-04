@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HarmonySync</title>
+  <!-- Note: Your bundler might auto-inject CSS. If not, ensure this points to your built CSS file -->
+  <script type="module" crossorigin src="../../popup.js"></script>
+  <link rel="stylesheet" crossorigin href="../../popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">HarmonySync</h2>
+
+  <!-- 1. The Tutorial Section -->
+  <div id="tutorial-section" class="tutorial-box">
+    <p class="tutorial-title">How to sync:</p>
+    <ol class="tutorial-steps">
+      <li>Open an Apple Music playlist tab</li>
+      <li>Open a YouTube Music tab</li>
+      <li>Click Run Transfer</li>
+    </ol>
+  </div>
+
+  <!-- 2. The Main Button -->
+  <button id="run-transfer">Run Transfer</button>
+
+  <!-- 3. Status and Loader -->
+  <div style="display: flex; align-items: flex-start; gap: 10px;">
+    <div class="loader" id="loader"></div>
+    <div>
+      <div id="status">Ready</div>
+      <div id="step">Idle</div>
+    </div>
+  </div>
+
+  <!-- 4. Progress Bar Section -->
+  <div class="progress-wrapper">
+    <div id="progress-bar-container">
+      <div id="progress-bar-fill"></div>
+    </div>
+    <div class="progress-stats">
+      <span id="success-count">Succeeded: 0</span>
+      <span id="fail-count">Failed: 0</span>
+    </div>
+  </div>
+
+  <!-- Note: Your bundler might auto-inject JS. If not, ensure this points to your built JS file -->
+</body>
+</html>

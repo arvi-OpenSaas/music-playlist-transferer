@@ -4,12 +4,16 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>HarmonySync</title>
-    <script type="module" src="./dist/popup.js"></script>
-    <link rel="stylesheet" href="./dist/popup.css" />
+    <!-- Use relative paths (./) for Chrome extensions -->
+    <script type="module" src="./popup.js"></script>
+    <link rel="stylesheet" href="./popup.css" />
   </head>
   <body>
     <h3>HarmonySync</h3>
     <button id="run-transfer">Run Transfer</button>
+    <div id="loader" class="loader" aria-hidden="true"></div>
     <div id="status">Waiting</div>
+    <!-- Added the missing step div -->
+    <div id="step">Idle</div> 
   </body>
 </html>

@@ -13,6 +13,13 @@ const appleProvider = new AppleMusicProvider(undefined, storage);
 
 console.warn('HarmonySync Background Service Started');
 
+chrome.runtime.onInstalled.addListener((details) => {
+  if (details.reason === 'install') {
+    // Opens a new tab pointing to your tutorial page when installed
+    chrome.tabs.create({ url: chrome.runtime.getURL('welcome.html') });
+  }
+});
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   void (async () => {
     if (message?.type === 'START_TRANSFER') {
