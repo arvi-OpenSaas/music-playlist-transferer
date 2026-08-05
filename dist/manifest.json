@@ -18,7 +18,7 @@
     "type": "module"
   },
   "action": {
-    "default_popup": "popup.html",
+    "default_popup": "src/popup/popup.html",
     "default_title": "HarmonySync",
     "default_icon": {
       "16": "logo.png",
