@@ -131,6 +131,88 @@ button:active {
   line-height: 1.6;
 }
 
+/* Auto-Detect Route Card */
+.route-card {
+  background-color: var(--bg-secondary);
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 16px;
+  border: 1px solid var(--border-subtle);
+  text-align: center;
+}
+
+.route-title {
+  margin: 0 0 10px 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary);
+}
+
+.route-display {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.badge {
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.source-badge {
+  background-color: var(--border-subtle);
+  color: var(--text-primary);
+}
+
+.dest-badge {
+  background-color: var(--text-primary);
+  color: var(--bg-main);
+}
+
+.route-arrow {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Extra dropdown if >2 tabs are open */
+.multi-tab-dropdown {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--border-subtle);
+  text-align: left;
+}
+
+.multi-tab-dropdown label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  margin-bottom: 6px;
+}
+
+.multi-tab-dropdown select {
+  width: 100%;
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 6px;
+}
+
+.tab-error {
+  color: #ff6b6b;
+  font-size: 12px;
+  background: rgba(255, 107, 107, 0.1);
+  border: 1px solid #ff6b6b;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 16px;
+  line-height: 1.4;
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);

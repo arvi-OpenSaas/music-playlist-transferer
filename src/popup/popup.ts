@@ -1,132 +1,170 @@
-import '@/popup/popup.css';
+import './popup.css'; 
 
-// 1. Tell TypeScript exactly what our progress data looks like
-interface TransferProgressState {
-  status: string;
-  processed: number;
-  total: number;
-  successes: number;
-  failures: number;
-  percentage: number;
+import { ProviderFactory } from '../core/providerFactory';
+import { TransferProgressState } from '../core/types';
+
+// ============================================================================
+// ELEMENT SELECTORS
+// ============================================================================
+const runButton = document.getElementById('runButton') as HTMLButtonElement | null;
+const cancelButton = document.getElementById('cancelButton') as HTMLButtonElement | null;
+const progressTextEl = document.getElementById('progressText');
+const progressSubtitleEl = document.getElementById('progressSubtitle');
+const successCountEl = document.getElementById('successCount');
+const failCountEl = document.getElementById('failCount');
+const progressBarEl = document.getElementById('progressBar');
+
+// New Selectors for the Route Card
+const autoDetectCard = document.getElementById('auto-detect-card') as HTMLDivElement | null;
+const sourceBadge = document.getElementById('source-badge') as HTMLSpanElement | null;
+const destBadge = document.getElementById('dest-badge') as HTMLSpanElement | null;
+const tabErrorMsg = document.getElementById('tab-error-msg') as HTMLDivElement | null;
+
+// State Variables
+let finalSourceProvider: string | null = null;
+let finalDestProvider: string | null = null;
+
+// Helper to convert IDs to display names
+function getDisplayName(id: string): string {
+  return id === 'APPLE_MUSIC' ? 'Apple Music' : 'YouTube Music';
 }
 
-console.log("🚀 Popup script is loading!");
-
-document.addEventListener('DOMContentLoaded', () => {
-  console.log("📄 HTML fully loaded. Hunting for elements...");
-
-  const statusEl = document.getElementById('status');
-  const stepEl = document.getElementById('step');
-  const loaderEl = document.getElementById('loader');
-  const runButton = document.getElementById('run-transfer');
-
-  const progressTextEl = document.getElementById('progress-text');
-  const successCountEl = document.getElementById('success-count');
-  const failCountEl = document.getElementById('fail-count');
-  const progressBarEl = document.getElementById('progress-bar-fill');
-
-  console.log("🔍 Elements found:", { 
-    statusEl, 
-    stepEl, 
-    loaderEl, 
-    runButton, 
-    progressTextEl, 
-    successCountEl, 
-    failCountEl, 
-    progressBarEl 
-  });
-
-  if (!runButton) {
-    console.error("❌ CRITICAL: The 'Run Transfer' button was not found in the HTML!");
-    return;
+// ============================================================================
+// UI UPDATE HELPERS
+// ============================================================================
+function updateUiState(isRunning: boolean) {
+  if (runButton) {
+    runButton.style.display = isRunning ? 'none' : 'block';
+    runButton.disabled = isRunning || !finalSourceProvider || !finalDestProvider;
   }
 
-  if (statusEl) statusEl.textContent = 'Ready';
-  if (stepEl) stepEl.textContent = 'Idle';
-
-  const updateUi = (message: string, step: string, isLoading: boolean) => {
-    if (statusEl) statusEl.textContent = message;
-    if (stepEl) stepEl.textContent = step;
-    if (loaderEl) loaderEl.classList.toggle('active', isLoading);
-    // Inside your updateUi function or when starting the transfer:
-const tutorialEl = document.getElementById('tutorial-section');
-if (tutorialEl) {
-  tutorialEl.style.display = 'none'; // Hides the tutorial when the app is working
+  if (cancelButton) {
+    cancelButton.style.display = isRunning ? 'block' : 'none';
+    cancelButton.disabled = !isRunning;
+    cancelButton.textContent = "Stop Transfer";
+  }
 }
-  };
 
-  // ============================================================================
-  // RESTORE STATE ON OPEN
-  // ============================================================================
-  chrome.storage.local.get('harmonyTransferState', (data) => {
-    // 2. Cast the unknown storage data to our specific type
-    const state = data.harmonyTransferState as TransferProgressState | undefined;
-    
-    if (state) {
-      console.log("💾 Found previous state in storage:", state);
-      
-      if (state.status === 'running') {
-        const progressMessage = `Transferring: ${state.processed}/${state.total} (${state.percentage}%)`;
-        const stepDetail = `Succeeded: ${state.successes} | Failed: ${state.failures}`;
-        
-        updateUi(progressMessage, stepDetail, true);
+function updateUiText(payload: TransferProgressState) {
+  const isRunning = payload.status === 'running' || payload.status === 'cancelling';
+  
+  if (progressTextEl) {
+    progressTextEl.textContent = isRunning 
+      ? `Transferring: ${payload.processed} / ${payload.total} (${payload.percentage}%)`
+      : payload.status === 'cancelled' ? `Transfer Stopped (${payload.percentage}%)` : `Transfer Complete! (${payload.percentage}%)`;
+  }
 
-        if (progressTextEl) progressTextEl.textContent = `${state.processed} / ${state.total} (${state.percentage}%)`;
-        if (successCountEl) successCountEl.textContent = `Succeeded: ${state.successes}`;
-        if (failCountEl) failCountEl.textContent = `Failed: ${state.failures}`;
-        if (progressBarEl) progressBarEl.style.width = `${state.percentage}%`;
-      } else if (state.status === 'completed' || state.status === 'failed') {
-        updateUi(`Transfer status: ${state.status}`, 'Finished', false);
-      }
-    }
-  });
+  if (progressSubtitleEl) progressSubtitleEl.textContent = `Succeeded: ${payload.successes} | Failed: ${payload.failures}`;
+  if (successCountEl) successCountEl.textContent = `Succeeded: ${payload.successes}`;
+  if (failCountEl) failCountEl.textContent = `Failed: ${payload.failures}`;
+  if (progressBarEl) progressBarEl.style.width = `${payload.percentage}%`;
+}
 
-  // ============================================================================
-  // REAL-TIME PROGRESS LISTENER
-  // ============================================================================
-  chrome.runtime.onMessage.addListener((message) => {
-    if (message?.type === 'TRANSFER_PROGRESS') {
-      // 3. Cast the unknown message payload to our specific type
-      const payload = message.payload as TransferProgressState;
-
-      const progressMessage = `Transferring: ${payload.processed}/${payload.total} (${payload.percentage}%)`;
-      const stepDetail = `Succeeded: ${payload.successes} | Failed: ${payload.failures}`;
-
-      updateUi(progressMessage, stepDetail, true);
-
-      if (progressTextEl) progressTextEl.textContent = `${payload.processed} / ${payload.total} (${payload.percentage}%)`;
-      if (successCountEl) successCountEl.textContent = `Succeeded: ${payload.successes}`;
-      if (failCountEl) failCountEl.textContent = `Failed: ${payload.failures}`;
-      if (progressBarEl) progressBarEl.style.width = `${payload.percentage}%`;
-    }
-  });
-
-  // ============================================================================
-  // TRANSFER TRIGGER
-  // ============================================================================
+// ============================================================================
+// BUTTON CLICK EVENTS
+// ============================================================================
+if (runButton) {
   runButton.addEventListener('click', () => {
-    console.log("🖱️ Button clicked! Sending message to background...");
-    updateUi('Starting transfer...', 'Preparing sources', true);
+    if (!finalSourceProvider || !finalDestProvider) return;
 
-    if (progressTextEl) progressTextEl.textContent = '0%';
-    if (successCountEl) successCountEl.textContent = 'Succeeded: 0';
-    if (failCountEl) failCountEl.textContent = 'Failed: 0';
-    if (progressBarEl) progressBarEl.style.width = '0%';
+    updateUiState(true);
 
-    chrome.runtime.sendMessage({ type: 'START_TRANSFER' }, (response) => {
-      console.log("📨 Response received from background:", response);
-      
-      if (response?.ok) {
-        const finalStatus = response.report?.status ?? 'unknown';
-        const message = finalStatus === 'failed' 
-          ? 'Transfer could not run because no songs were available yet.' 
-          : `Transfer status: ${finalStatus}`;
-        
-        updateUi(message, finalStatus === 'failed' ? 'Finished with no data' : 'Finished', false);
-        return;
-      }
-
-      updateUi('Transfer failed', 'Failed', false);
+    chrome.runtime.sendMessage({
+      type: 'START_TRANSFER',
+      payload: { source: finalSourceProvider, destination: finalDestProvider }
     });
   });
+}
+
+if (cancelButton) {
+  cancelButton.addEventListener('click', () => {
+    cancelButton.textContent = "Stopping...";
+    cancelButton.disabled = true;
+    chrome.runtime.sendMessage({ type: 'CANCEL_TRANSFER' });
+  });
+}
+
+// ============================================================================
+// REAL-TIME PROGRESS LISTENER
+// ============================================================================
+chrome.runtime.onMessage.addListener((message) => {
+  if (message?.type === 'TRANSFER_PROGRESS') {
+    const payload = message.payload as TransferProgressState;
+    const isRunning = payload.status === 'running' || payload.status === 'cancelling';
+
+    updateUiState(isRunning);
+    updateUiText(payload);
+  }
+});
+
+// ============================================================================
+// WAKEUP ROUTINE & SMART TAB DETECTION
+// ============================================================================
+async function detectTabs() {
+  // 1. Get the tab you are CURRENTLY looking at
+  const activeTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const activeTab = activeTabs[0];
+
+  // 2. Get all other open tabs
+  const allTabs = await chrome.tabs.query({});
+  const platforms = ProviderFactory.getSupportedPlatforms();
+
+  let activePlatformId: string | null = null;
+  const otherOpenPlatforms: string[] = [];
+
+  // Check if your current active tab is a supported music player
+  if (activeTab && activeTab.url) {
+    const matched = platforms.find(p => activeTab.url!.includes(p.domain));
+    if (matched) activePlatformId = matched.id;
+  }
+
+  // Check the background tabs to find your destination
+  for (const tab of allTabs) {
+    if (tab.id === activeTab?.id) continue; 
+    if (tab.url) {
+      const matched = platforms.find(p => tab.url!.includes(p.domain));
+      if (matched && !otherOpenPlatforms.includes(matched.id)) {
+        otherOpenPlatforms.push(matched.id);
+      }
+    }
+  }
+
+  // Assign the Source to the active tab, and target the background tab
+  if (activePlatformId) {
+    finalSourceProvider = activePlatformId;
+    finalDestProvider = otherOpenPlatforms.length > 0 
+      ? otherOpenPlatforms[0] 
+      : (activePlatformId === 'APPLE_MUSIC' ? 'YOUTUBE_MUSIC' : 'APPLE_MUSIC'); // Default fallback
+      
+    // Un-hide the UI card and set the text!
+    if (autoDetectCard) autoDetectCard.style.display = 'block';
+    if (tabErrorMsg) tabErrorMsg.style.display = 'none';
+    if (sourceBadge) sourceBadge.textContent = getDisplayName(finalSourceProvider);
+    if (destBadge) destBadge.textContent = getDisplayName(finalDestProvider);
+    
+  } else {
+    // If you open the extension on Google.com, show the error
+    finalSourceProvider = null;
+    finalDestProvider = null;
+    
+    if (autoDetectCard) autoDetectCard.style.display = 'none';
+    if (tabErrorMsg) tabErrorMsg.style.display = 'block';
+  }
+
+  updateUiState(false);
+}
+
+// Check for active transfers, otherwise detect tabs
+chrome.storage.local.get(['transferState'], (result) => {
+  if (result.transferState) {
+    const state = result.transferState as TransferProgressState;
+    if (state.status === 'running' || state.status === 'cancelling') {
+      updateUiState(true);
+      updateUiText(state);
+      return; 
+    } else {
+      updateUiText(state);
+    }
+  }
+  detectTabs();
 });
