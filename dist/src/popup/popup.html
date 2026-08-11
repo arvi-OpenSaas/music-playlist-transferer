@@ -6,42 +6,71 @@
   <title>Harmony Sync</title>
   <!-- Note: Your bundler might auto-inject CSS. If not, ensure this points to your built CSS file -->
   <script type="module" crossorigin src="../../popup.js"></script>
+  <link rel="modulepreload" crossorigin href="../../providerFactory.js">
   <link rel="stylesheet" crossorigin href="../../popup.css">
 </head>
-<body>
+<body style="width: 320px; padding: 16px; background-color: #1a1a1a; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  
   <!-- Header -->
-  <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 18px; color: var(--text-primary);">Harmony Sync</h2>
+  <h2 style="margin-top: 0; margin-bottom: 16px; font-size: 18px; color: #ffffff;">Harmony Sync</h2>
 
   <!-- 1. The Tutorial Section -->
-  <div id="tutorial-section" class="tutorial-box">
-    <p class="tutorial-title">How to sync:</p>
-    <ol class="tutorial-steps">
+  <div id="tutorial-section" class="tutorial-box" style="margin-bottom: 16px;">
+    <p class="tutorial-title" style="margin: 0 0 8px 0; font-weight: bold; font-size: 14px;">How to sync:</p>
+    <ol class="tutorial-steps" style="margin: 0; padding-left: 20px; font-size: 13px; color: #cccccc;">
       <li>Open the source music provider tab</li>
       <li>Open the target music provider tab</li>
       <li>Click Run Transfer</li>
     </ol>
   </div>
+  
+  <!-- Dynamic Auto-Detect Card -->
+  <div id="auto-detect-card" class="route-card" style="display: none; margin-bottom: 16px;">
+    <p class="route-title" style="margin: 0 0 8px 0; font-size: 13px; color: #aaaaaa;">Detected Transfer Route:</p>
+    <div class="route-display" style="display: flex; align-items: center; gap: 8px;">
+      <span id="source-badge" class="badge source-badge">...</span>
+      <span class="route-arrow">➔</span>
+      <span id="dest-badge" class="badge dest-badge">...</span>
+    </div>
+    
+    <!-- Shows up ONLY if they have more than 2 music tabs open -->
+    <div id="multi-tab-selector" class="multi-tab-dropdown" style="display: none; margin-top: 10px;">
+      <label for="dest-select" style="font-size: 12px; color: #aaaaaa;">Multiple targets found. Select destination:</label>
+      <select id="dest-select" style="width: 100%; margin-top: 4px; padding: 4px;"></select>
+    </div>
+  </div>
 
-  <!-- 2. The Main Button -->
-  <button id="run-transfer">Run Transfer</button>
+  <!-- Error message if they don't have the right tabs open -->
+  <div id="tab-error-msg" class="tab-error" style="display: none; margin-bottom: 16px; color: #ff4d4d; font-size: 13px;">
+    ⚠️ Please open a supported music platform tab (e.g., Apple Music, YouTube Music) to continue.
+  </div>
+
+  <!-- Button Group -->
+  <div class="button-group" style="margin-bottom: 20px;">
+    <button id="runButton" class="primary-btn" style="width: 100%; padding: 10px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; background-color: #ffffff; color: #000000;">Run Transfer</button>
+    <button id="cancelButton" class="secondary-btn" style="display: none; width: 100%; padding: 10px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; background-color: #ff4d4d; color: white; margin-top: 10px;">Stop Transfer</button>
+  </div>
 
   <!-- 3. Status and Loader -->
-  <div style="display: flex; align-items: flex-start; gap: 10px;">
+  <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 12px;">
     <div class="loader" id="loader"></div>
     <div>
-      <div id="status">Ready</div>
-      <div id="step">Idle</div>
+      <h3 id="progressText" style="margin: 0; font-size: 14px; font-weight: 600;">Ready</h3>
+      <p id="progressSubtitle" style="margin: 4px 0 0 0; font-size: 12px; color: #aaaaaa;">Idle</p>
     </div>
   </div>
 
   <!-- 4. Progress Bar Section -->
   <div class="progress-wrapper">
-    <div id="progress-bar-container">
-      <div id="progress-bar-fill"></div>
+    <!-- The Outer Dark Grey Track -->
+    <div style="width: 100%; height: 8px; background-color: #333333; border-radius: 4px; overflow: hidden; margin: 12px 0;">
+      <!-- The Inner White Fill (This is what the JS targets!) -->
+      <div id="progressBar" style="width: 0%; height: 100%; background-color: #ffffff; transition: width 0.3s ease;"></div>
     </div>
-    <div class="progress-stats">
-      <span id="success-count">Succeeded: 0</span>
-      <span id="fail-count">Failed: 0</span>
+    <!-- Stats -->
+    <div class="progress-stats" style="display: flex; justify-content: space-between; font-size: 12px; color: #aaaaaa;">
+      <span id="successCount">Succeeded: 0</span>
+      <span id="failCount">Failed: 0</span>
     </div>
   </div>
 
