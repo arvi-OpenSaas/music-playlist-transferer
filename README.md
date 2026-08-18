@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://via.placeholder.com/120x120.png?text=HS" alt="Harmony Sync Logo" width="120" height="120">
+  <img src="https://github.com/arvi-OpenSaas/music-playlist-transferer/blob/main/public/logo.png?text=HS" alt="Harmony Sync Logo" width="120" height="120">
   <h1>Harmony Sync 🎵</h1>
   <p><b>A robust, fully automated Chrome Extension for migrating playlists seamlessly across music providers.</b></p>
   
