@@ -42,6 +42,21 @@
     ⚠️ Please open a supported music platform tab (e.g., Apple Music, YouTube Music) to continue.
   </div>
 
+  <!-- Error message if they don't have the right tabs open -->
+  <div id="tab-error-msg" class="tab-error" style="display: none; margin-bottom: 16px; color: #ff4d4d; font-size: 13px;">
+    ⚠️ Please open a supported music platform tab (e.g., Apple Music, YouTube Music) to continue.
+  </div>
+
+  <!-- THE NEW LOGIN ERROR MESSAGE -->
+  <div id="login-error-msg" class="tab-error" style="display: none; margin-bottom: 16px; color: #ffaa00; font-size: 13px; border: 1px solid #ffaa00; padding: 10px; border-radius: 6px; background: rgba(255, 170, 0, 0.1);">
+    ⚠️ Please log in to continue.
+  </div>
+
+<!-- Spotify Premium Alert Banner -->
+<div id="spotify-premium-notice" style="display: none; background: rgba(30, 215, 96, 0.1); border: 1px solid rgba(30, 215, 96, 0.3); color: #1db954; padding: 10px; border-radius: 8px; font-size: 11px; line-height: 1.4; margin-bottom: 12px; text-align: left;">
+  <span style="font-weight: bold;">Spotify Premium Notice:</span> An active Spotify Premium subscription is required to read or write playlists and please press <b>agree</b> in the popup to start transferring in Spotify.
+</div>
+
   <!-- Button Group -->
   <div class="button-group" style="margin-bottom: 20px;">
     <button id="runButton" class="primary-btn" style="width: 100%; padding: 10px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; background-color: #ffffff; color: #000000;">Run Transfer</button>
@@ -70,6 +85,13 @@
       <span id="failCount">Failed: 0</span>
     </div>
   </div>
+
+  <!-- Buy Me a Coffee Hyperlink Footer -->
+<div style="text-align: center; margin-top: 16px; margin-bottom: 6px;">
+  <a id="bmac-link" href="#" style="color: #888888; font-size: 12px; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-weight: 500; transition: color 0.2s ease;">
+    ☕ <span style="text-decoration: underline; text-underline-offset: 3px;">Buy me a coffee</span>
+  </a>
+</div>
 
   <!-- Note: Your bundler might auto-inject JS. If not, ensure this points to your built JS file -->
   <script type="module" src="popup.ts"></script>

@@ -15,9 +15,8 @@ import {
   TransferResult,
 } from '@/shared/types';
 
-// ============================================================================
+
 // 1. UTILITIES
-// ============================================================================
 
 function sanitizeTrackData(text: string): string {
   if (!text) return '';
@@ -31,10 +30,8 @@ function sanitizeTrackData(text: string): string {
   return clean.trim();
 }
 
-// ============================================================================
-// 2. TRANSFER ENGINE
-// ============================================================================
 
+// 2. TRANSFER ENGINE
 export interface TransferEngine {
   runTransfer(job: TransferJob, sourceSongs: Song[], sourcePlaylist?: Playlist): Promise<TransferReport>;
 }
