@@ -1,9 +1,7 @@
 import { MusicProvider, UniversalSong } from '../core/types';
 
-// ==========================================
-// INJECTED SCRIPTS (Runs inside Apple Music)
-// ==========================================
 
+// INJECTED SCRIPTS (Runs inside Apple Music)
 async function searchUsingMusicKit(title: string, artist: string): Promise<any> {
   try {
     // @ts-ignore
@@ -217,5 +215,21 @@ export class AppleMusicAdapter implements MusicProvider {
 
     const res = injectionResults[0]?.result as any;
     return res?.success === true;
+  }
+
+  async isLoggedIn(): Promise<boolean> {
+    const targetTab = await this.getAppleMusicTab();
+
+    const injectionResults = await chrome.scripting.executeScript({
+      target: { tabId: targetTab.id! },
+      world: 'MAIN',
+      func: () => {
+        // @ts-ignore
+        const musicKit = window.MusicKit?.getInstance();
+        return musicKit ? musicKit.isAuthorized === true : false;
+      }
+    });
+
+    return injectionResults[0]?.result === true;
   }
 }

@@ -42,6 +42,8 @@ export interface MusicProvider {
   
   /** Takes a list of platform-specific track IDs and adds them to a playlist */
   addToPlaylist(playlistId: string, trackIds: string[]): Promise<boolean>;
+
+  isLoggedIn(): Promise<boolean>;
 }
 
 /**

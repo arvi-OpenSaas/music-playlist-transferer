@@ -1,10 +1,5 @@
 import { MusicProvider, UniversalSong } from '../core/types';
 
-// ==========================================
-// INJECTED SCRIPTS (Runs inside YouTube Music)
-// Moved OUTSIDE the class so Vite/Chrome doesn't mangle them
-// ==========================================
-
 async function searchInnerTube(title: string, artist: string): Promise<any> {
   try {
     // @ts-ignore - Access YouTube's hidden configuration object
@@ -81,9 +76,7 @@ async function addInnerTubePlaylist(trackIds: string[], sessionKey: string): Pro
     let targetPlaylistId = window[sessionKey];
 
     if (!targetPlaylistId) {
-      // ====================================================================
       // SMART SEQUENCING: Check for existing Harmony Sync playlists
-      // ====================================================================
       let newPlaylistName = 'Harmony Sync';
 
       try {
@@ -103,8 +96,6 @@ async function addInnerTubePlaylist(trackIds: string[], sessionKey: string): Pro
         let maxNum = 0;
         let hasBase = false;
 
-        // ✅ THE FIX: A highly aggressive Regex that finds "Harmony Sync" 
-        // absolutely anywhere in the data, regardless of JSON formatting.
         const regex = /Harmony Sync(?: - (\d+))?/g;
         let match;
         
@@ -122,7 +113,6 @@ async function addInnerTubePlaylist(trackIds: string[], sessionKey: string): Pro
       } catch (e) {
         console.warn("Could not fetch existing playlists. Defaulting to base name.");
       }
-      // ====================================================================
 
       // 1. Create a brand new sequenced playlist
       const res = await fetch(`https://music.youtube.com/youtubei/v1/playlist/create?key=${apiKey}`, {
@@ -202,9 +192,8 @@ function scrapeDomForSongs(): UniversalSong[] {
   return songs;
 }
 
-// ==========================================
+
 // THE ADAPTER CLASS
-// ==========================================
 export class YouTubeMusicAdapter implements MusicProvider {
   name = 'YouTube Music';
   id = 'YOUTUBE_MUSIC';
@@ -272,5 +261,19 @@ export class YouTubeMusicAdapter implements MusicProvider {
     }
     
     return true;
+  }
+
+  async isLoggedIn(): Promise<boolean> {
+    const targetTab = await this.getYouTubeTab();
+
+    const injectionResults = await chrome.scripting.executeScript({
+      target: { tabId: targetTab.id! },
+      func: () => {
+        // If the SAPISID cookie is present, the user is logged in and authorized
+        return document.cookie.includes('SAPISID=');
+      }
+    });
+
+    return injectionResults[0]?.result === true;
   }
 }

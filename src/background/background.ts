@@ -11,7 +11,6 @@ let currentTransferState: TransferProgressState = {
   percentage: 0
 };
 
-let cancelRequested = false;
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'START_TRANSFER') {
@@ -35,30 +34,48 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     sendResponse({ ok: true });
     return true;
   }
+
+  // NEW: The popup will ask for this the moment it opens to reconnect to the transfer
+  if (message.type === 'GET_STATUS') {
+    sendResponse({ state: currentTransferState });
+    return true;
+  }
 });
 
 /**
- * Scrubs messy YouTube titles. Strips out hyphens, pipes, and junk words.
+ * Ruthlessly scrubs titles to ensure API compatibility.
  */
 function sanitizeTitleOnly(title: string): string {
-  // 1. Strip everything after a pipe or hyphen (usually cast lists or labels)
-  let clean = title.split('|')[0];
-  clean = clean.split('-')[0]; 
-  
-  // 2. Aggressive junk word removal
+  let clean = title.toLowerCase();
+
+  // 1. Nuke everything after specific characters
+  clean = clean.split('|')[0];
+  clean = clean.split('-')[0];
+  clean = clean.split('feat.')[0];
+  clean = clean.split(' ft.')[0];
+
+  // 2. Remove all text inside parentheses and brackets entirely
+  clean = clean.replace(/\[.*?\]|\(.*?\)/g, '');
+
+  // 3. Aggressively remove generic junk words
   const junkWords = [
-    /official/gi, /video/gi, /song/gi, /tamil/gi, /full/gi, 
-    /hd/gi, /4k/gi, /1080p/gi, /lyrical/gi, /lyric/gi, /audio/gi
+    'official', 'video', 'song', 'tamil', 'full', 'hd', '4k', '1080p', 
+    'lyrical', 'lyric', 'audio', 'original motion picture soundtrack', 
+    'original soundtrack', 'theme', 'bgm'
   ];
   
-  junkWords.forEach(regex => {
+  junkWords.forEach(word => {
+    const regex = new RegExp(`\\b${word}\\b`, 'gi');
     clean = clean.replace(regex, '');
   });
 
-  // 3. Remove parentheses/brackets
-  clean = clean.replace(/\[.*?\]|\(.*?\)/g, '');
+  // 4. Strip out any remaining non-alphanumeric characters
+  clean = clean.replace(/[^\w\s\u0C00-\u0C7F\u0B80-\u0BFF]/g, ' ');
+
+  // 5. Remove extra spaces
+  clean = clean.replace(/\s+/g, ' ').trim();
   
-  return clean.trim();
+  return clean;
 }
 
 async function startTransferRoutine(sourceId: string, destId: string) {
@@ -88,7 +105,6 @@ async function startTransferRoutine(sourceId: string, destId: string) {
     };
     saveAndBroadcastState();
 
-   // 4. The Transfer Loop
     // 4. The Transfer Loop
     for (const song of songsToTransfer) {
       
@@ -101,7 +117,6 @@ async function startTransferRoutine(sourceId: string, destId: string) {
       }
 
       try {
-        
         const cleanTitle = sanitizeTitleOnly(song.title);
         const primaryArtist = song.artist ? song.artist.split(',')[0].split('&')[0].trim() : '';
         
@@ -117,7 +132,7 @@ async function startTransferRoutine(sourceId: string, destId: string) {
         console.log(`✨ Pass 1 (Title + Artist): "${searchTarget.title}"`);
         let destTrackId = await destProvider.searchForSong(searchTarget);
         
-        // Pass 2: If Pass 1 fails, drop the artist (in case it's a record label) and try just the Title
+        // Pass 2: If Pass 1 fails, drop the artist and try just the Title
         if (!destTrackId) {
           console.log(`⚠️ Pass 1 failed. Pass 2 (Title Only): "${cleanTitle}"`);
           searchTarget.title = cleanTitle;
@@ -125,8 +140,8 @@ async function startTransferRoutine(sourceId: string, destId: string) {
         }
         
         if (destTrackId) {
-          // ✅ NEW: Actually check if the save was successful!
-          const addSuccess = await destProvider.addToPlaylist('CURRENT_ACTIVE_PLAYLIST', [destTrackId]);
+          // Send an empty string for the playlist ID so the Spotify Adapter creates a new one
+          const addSuccess = await destProvider.addToPlaylist('', [destTrackId]);
           
           if (addSuccess) {
             currentTransferState.successes++;
@@ -152,10 +167,12 @@ async function startTransferRoutine(sourceId: string, destId: string) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
 
-    // 5. Finish up
-    currentTransferState.status = 'completed';
-    saveAndBroadcastState();
-    console.log("✅ Transfer Complete!");
+    // 5. Finish up (only if not cancelled)
+    if (currentTransferState.status !== 'cancelled') {
+      currentTransferState.status = 'completed';
+      saveAndBroadcastState();
+      console.log("✅ Transfer Complete!");
+    }
 
   } catch (error) {
     console.error("🚨 Critical Transfer Error:", error);
@@ -165,11 +182,11 @@ async function startTransferRoutine(sourceId: string, destId: string) {
 }
 
 /**
- * Saves the current progress to local storage (so if the user closes and reopens the popup, 
- * it remembers where it was) and broadcasts it to the open popup.
+ * Saves the current progress to local storage and broadcasts it to the open popup.
  */
 function saveAndBroadcastState() {
-  chrome.storage.local.set({ harmonyTransferState: currentTransferState });
+  // FIXED: Standardized the storage key to 'transferState'
+  chrome.storage.local.set({ transferState: currentTransferState });
   chrome.runtime.sendMessage({ 
     type: 'TRANSFER_PROGRESS', 
     payload: currentTransferState 
