@@ -13,6 +13,12 @@
 
 <br/>
 
+<p align="center">
+  <a href="https://www.buymeacoffee.com/urbro" target="_blank">
+    <img src="https://img.shields.io/badge/Buy%20Me%20a%20Coffee-%23ffdd00.svg?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me a Coffee" height="45">
+  </a>
+</p>
+
 ## ✨ Features
 
 * **Seamless Cross-Platform Migration:** Effortlessly transfer playlists between Apple Music, Spotify, and YouTube Music.
@@ -35,4 +41,4 @@ Since this extension is currently in active development, you can install it dire
 
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/yourusername/harmony-sync.git](https://github.com/yourusername/harmony-sync.git)
+   git clone https://github.com/arvi-OpenSaas/music-playlist-transferer.git
