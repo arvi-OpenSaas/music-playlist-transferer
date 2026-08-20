@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "HarmonySync",
   "description": "Universal Music Playlist Migration Platform",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "permissions": [
     "tabs",
     "storage",
