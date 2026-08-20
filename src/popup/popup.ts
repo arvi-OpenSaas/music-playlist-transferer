@@ -217,16 +217,20 @@ async function detectTabs() {
           verifyAuthAndRender(); // Re-check login instantly!
         });
       }
+    } else if (otherOpenPlatforms.length === 1) {
+      // EXACTLY ONE TARGET TAB OPEN - THE MISSING LOGIC!
+      if (multiTabSelector) multiTabSelector.style.display = 'none';
+      finalDestProvider = otherOpenPlatforms[0]; // Assign the target provider!
     } else {
-    // Unsupported tab error
-    finalSourceProvider = null;
-    finalDestProvider = null;
-    if (autoDetectCard) autoDetectCard.style.display = 'none';
-    if (tabErrorMsg) tabErrorMsg.style.display = 'block';
-    if (loginErrorMsg) loginErrorMsg.style.display = 'none';
-    if (spotifyPremiumNotice) spotifyPremiumNotice.style.display = 'none';
-    updateUiState(false);
-  }
+      // 0 targets open - Unsupported tab error
+      finalSourceProvider = null;
+      finalDestProvider = null;
+      if (autoDetectCard) autoDetectCard.style.display = 'none';
+      if (tabErrorMsg) tabErrorMsg.style.display = 'block';
+      if (loginErrorMsg) loginErrorMsg.style.display = 'none';
+      if (spotifyPremiumNotice) spotifyPremiumNotice.style.display = 'none';
+      updateUiState(false);
+    }
 
     // Run the initial auth check
     await verifyAuthAndRender();
