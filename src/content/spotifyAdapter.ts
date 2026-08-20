@@ -1,4 +1,5 @@
 import { MusicProvider, UniversalSong } from '../core/types';
+import { SPOTIFY_CONFIG } from '../config';
 
 let searchQueue: Promise<any> = Promise.resolve();
 let cachedToken: string | null = null;
@@ -9,7 +10,7 @@ export class SpotifyAdapter implements MusicProvider {
   name = 'Spotify';
   id = 'SPOTIFY';
   
-  private clientId = 'client id'; 
+  private clientId = SPOTIFY_CONFIG.CLIENT_ID; 
   private redirectUri = chrome.identity.getRedirectURL();
 
 
@@ -170,8 +171,8 @@ export class SpotifyAdapter implements MusicProvider {
   
   // 1. OFFICIAL PKCE TOKEN AUTH (UPDATED SCOPES)
   private async getToken(): Promise<string | null> {
+    
     if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
-
     try {
       const codeVerifier = this.generateRandomString(64);
       const codeChallenge = await this.generateCodeChallenge(codeVerifier);
