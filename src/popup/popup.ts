@@ -58,9 +58,24 @@ function updateUiText(payload: TransferProgressState) {
   const isRunning = payload.status === 'running' || payload.status === 'cancelling';
   
   if (progressTextEl) {
-    progressTextEl.textContent = isRunning 
-      ? `Transferring: ${payload.processed} / ${payload.total} (${payload.percentage}%)`
-      : payload.status === 'cancelled' ? `Transfer Stopped (${payload.percentage}%)` : `Transfer Complete! (${payload.percentage}%)`;
+    if (isRunning) {
+      // Format the ETA text if we have a valid number
+      let etaText = "";
+      if (payload.etaSeconds !== undefined && payload.etaSeconds > 0) {
+        const m = Math.floor(payload.etaSeconds / 60);
+        const s = payload.etaSeconds % 60;
+        // Pads the seconds with a leading zero if it's less than 10 (e.g., "05" instead of "5")
+        etaText = ` | Time left: ${m}m ${s < 10 ? '0' : ''}${s}s`; 
+      }
+      
+      progressTextEl.textContent = `Transferring: ${payload.processed} / ${payload.total} (${payload.percentage}%)${etaText}`;
+    } else if (payload.status === 'cancelled') {
+      progressTextEl.textContent = `Transfer Stopped (${payload.percentage}%)`;
+    } else if (payload.status === 'failed') {
+      progressTextEl.textContent = `Transfer Failed! Refer the popup for details.`; 
+    } else {
+      progressTextEl.textContent = `Transfer Complete! (${payload.percentage}%)`;
+    }
   }
 
   if (progressSubtitleEl) progressSubtitleEl.textContent = `Succeeded: ${payload.successes} | Failed: ${payload.failures}`;
@@ -68,7 +83,6 @@ function updateUiText(payload: TransferProgressState) {
   if (failCountEl) failCountEl.textContent = `Failed: ${payload.failures}`;
   if (progressBarEl) progressBarEl.style.width = `${payload.percentage}%`;
 }
-
 
 // AUTHENTICATION CHECKER
 async function verifyAuthAndRender() {
@@ -160,6 +174,8 @@ chrome.runtime.onMessage.addListener((message) => {
     const isRunning = payload.status === 'running' || payload.status === 'cancelling';
     updateUiState(isRunning);
     updateUiText(payload);
+  } else if (message?.type === 'SPOTIFY_403_ALERT') {
+    alert(message.payload);
   }
 });
 

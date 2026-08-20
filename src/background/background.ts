@@ -1,3 +1,4 @@
+import { error } from 'console';
 import { ProviderFactory } from '../core/providerFactory';
 import { UniversalSong, TransferProgressState } from '../core/types';
 
@@ -10,6 +11,8 @@ let currentTransferState: TransferProgressState = {
   failures: 0,
   percentage: 0
 };
+
+let transferStartTime: number = 0;
 
 // Listen for messages from the popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
@@ -94,15 +97,17 @@ async function startTransferRoutine(sourceId: string, destId: string) {
       throw new Error("No songs found to transfer.");
     }
 
-    // 3. Initialize progress state
+    // 3. Initialize progress state & start stopwatch
     currentTransferState = {
       status: 'running',
       processed: 0,
       total: songsToTransfer.length,
       successes: 0,
       failures: 0,
-      percentage: 0
+      percentage: 0,
+      etaSeconds: 0
     };
+    const transferStartTime = Date.now();
     saveAndBroadcastState();
 
     // 4. The Transfer Loop
@@ -112,6 +117,7 @@ async function startTransferRoutine(sourceId: string, destId: string) {
       if (currentTransferState.status === 'cancelling') {
         console.warn("🛑 Transfer loop aborted by user.");
         currentTransferState.status = 'cancelled';
+        currentTransferState.etaSeconds = 0;
         saveAndBroadcastState();
         break; // Instantly kills the loop
       }
@@ -159,9 +165,15 @@ async function startTransferRoutine(sourceId: string, destId: string) {
         currentTransferState.failures++;
       }
 
-      // Update progress
+      // Update progress & calculate ETA
       currentTransferState.processed++;
       currentTransferState.percentage = Math.round((currentTransferState.processed / currentTransferState.total) * 100);
+
+      const elapsedMs = Date.now() - transferStartTime;
+      const msPerSong = elapsedMs / currentTransferState.processed;
+      const remainingSongs = currentTransferState.total - currentTransferState.processed;
+      currentTransferState.etaSeconds = Math.max(0, Math.round((remainingSongs * msPerSong) / 1000));
+
       saveAndBroadcastState();
       
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -170,14 +182,25 @@ async function startTransferRoutine(sourceId: string, destId: string) {
     // 5. Finish up (only if not cancelled)
     if (currentTransferState.status !== 'cancelled') {
       currentTransferState.status = 'completed';
+      currentTransferState.etaSeconds = 0;
       saveAndBroadcastState();
       console.log("✅ Transfer Complete!");
     }
 
-  } catch (error) {
-    console.error("🚨 Critical Transfer Error:", error);
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+
+    console.error("🚨 Critical Transfer Error:", err);
     currentTransferState.status = 'failed';
+    currentTransferState.etaSeconds = 0;
     saveAndBroadcastState();
+
+    if (errorMessage.includes('HTTP 403') || errorMessage.includes('403')) {
+      chrome.runtime.sendMessage({ 
+        type: 'SPOTIFY_403_ALERT', 
+        payload: "Spotify restricts third-party apps from reading other users' playlists.\n\nTo transfer this, clone it using the Spotify Desktop App:\n1. Open this playlist in the desktop app.\n2. Click a song and press Ctrl+A (Windows) or Cmd+A (Mac) to select all.\n3. Right-click > Add to playlist > Create playlist.\n4. Refresh your browser, open your new clone, and run the transfer again!" 
+      });
+    }
   }
 }
 

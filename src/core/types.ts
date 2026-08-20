@@ -56,4 +56,5 @@ export interface TransferProgressState {
   percentage: number;
   successes: number;
   failures: number;
+  etaSeconds?: number;
 }

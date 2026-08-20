@@ -169,9 +169,8 @@ export class SpotifyAdapter implements MusicProvider {
   }
 
   
-  // 1. OFFICIAL PKCE TOKEN AUTH (UPDATED SCOPES)
+  // 1. OFFICIAL PKCE TOKEN AUTH 
   private async getToken(): Promise<string | null> {
-    
     if (cachedToken && Date.now() < tokenExpiry) return cachedToken;
     try {
       const codeVerifier = this.generateRandomString(64);
@@ -184,12 +183,10 @@ export class SpotifyAdapter implements MusicProvider {
       authUrl.searchParams.append('code_challenge_method', 'S256');
       authUrl.searchParams.append('code_challenge', codeChallenge);
       
-      // 🔴 ADDED user-read-private so we can legally fetch your User ID for playlist creation
       authUrl.searchParams.append(
         'scope', 
         'playlist-modify-public playlist-modify-private playlist-read-private playlist-read-collaborative user-read-private user-read-email'
       );      
-      // Force the dialog so Spotify is forced to grant the new scopes
       authUrl.searchParams.append('show_dialog', 'true'); 
 
       const responseUrl = await chrome.identity.launchWebAuthFlow({
@@ -323,32 +320,32 @@ export class SpotifyAdapter implements MusicProvider {
     }
   }
 
-  // ==========================================
-  // SPOTIFY AUTHENTICATION VERIFICATION
-  // ==========================================
   async isLoggedIn(): Promise<boolean> {
     try {
-      const token = await this.getToken();
+      // 1. Grab your token (replace this line with however your adapter gets the token!)
+      // e.g., const token = this.cachedToken; OR const token = await this.fetchTokenFromInterceptor();
+      const token = await this.getToken(); 
+
       if (!token) {
+        console.warn("Spotify isLoggedIn: No token found.");
         return false;
       }
 
-      // Verify whether the token is genuinely active and valid
-      const res = await fetch('https://api.spotify.com/v1/me', {
+      // 2. Verify the token is actually valid and active
+      const response = await fetch('https://api.spotify.com/v1/me', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
 
-      if (res.status === 401 || res.status === 403) {
-        console.warn('[Spotify API] ⚠️ Stored token is expired or unauthorized. Clearing cache.');
-        await chrome.storage.local.remove(['spotify_access_token', 'spotify_token_expires_at']);
+      if (response.ok) {
+        return true; 
+      } else {
+        console.warn(`Spotify isLoggedIn: Token invalid. Status: ${response.status}`);
         return false;
       }
-
-      return res.ok;
-    } catch (e) {
-      console.error('[Spotify API] 💥 Error checking login status:', e);
+    } catch (error) {
+      console.error("Spotify auth check crashed:", error);
       return false;
     }
   }
